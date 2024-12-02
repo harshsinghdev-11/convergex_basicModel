@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sensor Data & QnA</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    .data {
+      font-size: 2rem;
+      margin: 20px 0;
+    }
+    .highlight {
+      background-color: yellow;
+      font-weight: bold;
+    }
+  </style>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/qna"></script>
+</head>
+<body>
+  <h1>Live Sensor Data</h1>
+  <div class="data">
+    <p>Temperature: <span id="temperature">0</span>°C</p>
+    <p>Humidity: <span id="humidity">0</span>%</p>
+    <p>Soil Moisture: <span id="soilMoisture">0</span></p>
+  </div>
+
+  <h1>Question and Answer Application</h1>
+  <div>
+    <p id="articleInput" style="border: 1px solid #ccc; padding: 10px;">Tulips require the following soil and temperature conditions to grow:
+      Soil temperature
+      Tulips prefer cool soil to grow roots, between 32–55°F. In warmer climates, you can grow tulips in a fridge or cold climate controlled room to achieve this temperature. 
+      Temperature during growth
+      Tulips require 12–14 weeks of temperatures below 55°F to bloom. In warmer regions, you can plant tulips as annuals from suppliers who pre-chill the bulbs. 
+      Humidity
+      Tulips prefer a drier environment, with a relative humidity of 70–75%. High humidity can cause bulbs to rot. 
+      Sunlight
+      Tulips thrive in full sun. 
+      Tulips are best grown in areas with cool, moist winters and warm, dry summers. They are planted in the fall and develop their roots over the winter months. </p></div>
+  <br><br>
+
+  <input type="text" id="question" placeholder="Ask your question here" />
+  <button id="askButton" disabled>Find Answer</button>
+  <div id="output"></div>
+
+  <script>
+    const socket = io();
+    socket.on("updateData", (data) => {
+      document.getElementById("temperature").textContent = data.temperature;
+      document.getElementById("humidity").textContent = data.humidity;
+      document.getElementById("soilMoisture").textContent = data.soilMoisture;
+    });
+
+    let model;
+    const articleInput = document.getElementById('articleInput');
+    const questionInput = document.getElementById('question');
+    const askButton = document.getElementById('askButton');
+    const outputDiv = document.getElementById('output');
+
+    async function loadModel() {
+      try {
+        model = await qna.load();
+        console.log("Model loaded successfully.");
+        askButton.disabled = false;
+      } catch (error) {
+        console.error("Error loading QnA model:", error);
+      }
+    }
+
+    askButton.addEventListener('click', async () => {
+      const articleText = articleInput.innerText.trim();
+      const question = questionInput.value.trim();
+
+      if (!articleText) {
+        alert("Please enter a paragraph.");
+        return;
+      }
+
+      if (!question) {
+        alert("Please enter a question.");
+        return;
+      }
+
+      const answers = await model.findAnswers(question, articleText);
+      outputDiv.innerHTML = '';
+      if (answers.length > 0) {
+        answers.forEach(answer => {
+          const answerDiv = document.createElement('div');
+          answerDiv.innerHTML = `<strong>Answer:</strong> ${answer.text} (Confidence: ${Math.round(answer.score * 100)}%)`;
+          outputDiv.appendChild(answerDiv);
+        });
+        highlightAnswer(answers[0]);
+      } else {
+        outputDiv.innerHTML = "No answer found.";
+      }
+    });
+
+    function highlightAnswer(answer) {
+      const articleText = articleInput.innerText;
+      const start = answer.startIndex;
+      const end = answer.endIndex;
+
+      const highlightedText =
+        articleText.substring(0, start) +
+        "<span class='highlight'>" +
+        articleText.substring(start, end + 1) +
+        "</span>" +
+        articleText.substring(end + 1);
+
+      articleInput.innerHTML = highlightedText;
+    }
+
+    loadModel();
+  </script>
+</body>
+</html>
